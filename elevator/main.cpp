@@ -1,12 +1,6 @@
 #include <iostream>
-#include <algorithm>
-#include <vector>
-#include <queue>
-#include <thread>
-#include <chrono>
-#include "Interactive.cpp"
-#include "Engineer.cpp"
-
+#include "headers/Interactive.h"
+#include "headers/Engineer.h"
 using namespace std;
 
 int main()
@@ -16,7 +10,7 @@ int main()
          << "There are two modes to this, Interactive and Engineer. " << endl
          << "Interactive mode - allows you to simulate elevator requests manually, essentially simulating if you were riding it yourself. " << endl
          << "Engineer mode - allows you to test the elevator with a set of predefined requests to see how it handles them." << endl
-         << "Please select a mode to begin: (I/E)" << endl;
+         << "Please select a mode to begin: (I/E) " << endl;
 
     cin >> modeSelection;
     modeSelection = toupper(modeSelection);
@@ -38,7 +32,7 @@ int main()
     }
     else if (modeSelection == 'E')
     {
-        cout << "You have selected Engineer mode." << endl;
+        EngineerMode();
     }
     return 0;
 }
