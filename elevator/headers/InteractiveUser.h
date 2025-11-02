@@ -5,11 +5,11 @@ class InteractiveUser
 {
 private:
     char directionInput;
-    int userFloor;     // current floor of user
-    bool userState;    // false = outside, true = inside
+    int userFloor;    
+    bool userState;    
 
 public:
-    InteractiveUser(); // constructor
+    InteractiveUser();
 
     int getUserFloor() const;
     bool getState() const;
