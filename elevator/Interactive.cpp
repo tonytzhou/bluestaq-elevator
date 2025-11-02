@@ -2,52 +2,115 @@
 #include <limits>
 #include <thread>
 #include <chrono>
+#include <string>
+#include <cctype>
+#include <algorithm>
+
 #include "headers/Interactive.h"
+
 using namespace std;
 
-void stayOrExit(int floorRequest, Elevator &elevator, InteractiveUser &user) //prompts user to stay or exit at a requested
+static void travelDots(int steps = 3, int ms = 600)
+{
+    for (int i = 0; i < steps; ++i)
+    {
+        this_thread::sleep_for(chrono::milliseconds(ms));
+        cout << ".";
+        cout.flush();
+    }
+    cout << "\n";
+}
+
+static void printHelp(int totalFloors)
+{
+    cout << "\nInteractive input commands (case-insensitive):\n"
+         << "  <floor> U      : Outside request at <floor> wanting to go Up\n"
+         << "  Example: 7U (7th floor, UP)\n"
+         << "  <floor> D      : Outside request at <floor> wanting to go Down\n"
+         << "  Example: 3D (3rd floor, DOWN)\n"
+         << "  <floor> N      : Inside request going to <floor>\n"
+         << "  H              : Help (this menu)\n"
+         << "  Q              : Quit\n"
+         << "  Floors are 1.." << totalFloors << ".\n\n";
+}
+
+static int parseFloor(const string &tok)
+{
+    if (tok.empty())
+        return -1;
+    for (unsigned char c : tok)
+        if (!isdigit(c))
+            return -1;
+    try
+    {
+        return stoi(tok);
+    }
+    catch (...)
+    {
+        return -1;
+    }
+}
+
+static bool normalizeTokens(string &a, string &b)
+{
+    if (!b.empty())
+        return true;
+    if (a.empty())
+        return false;
+    unsigned char last = static_cast<unsigned char>(a.back());
+    if (isalpha(last))
+    {
+        string digits = a.substr(0, a.size() - 1);
+        if (!digits.empty() && all_of(digits.begin(), digits.end(),
+                                      [](unsigned char c)
+                                      { return isdigit(c); }))
+        {
+            b = string(1, static_cast<char>(toupper(last)));
+            a = digits;
+            return true;
+        }
+    }
+    return false;
+}
+
+void stayOrExit(int floorRequest, Elevator &elevator, InteractiveUser &user)
 {
     if (floorRequest == elevator.getCurrentFloor())
     {
         elevator.openDoors();
-        cout << "Do you want to exit or stay in the elevator?" << endl;
-        cout << "Options: Exit/Stay (E/S)" << endl;
-        string exitChoice;
-
+        cout << "Exit or Stay? (E/S, Q to quit)\n";
+        string s;
         while (true)
         {
-            cin >> exitChoice;
-            if (exitChoice.empty())
+            if (!(cin >> s))
+                return;
+            if (s.empty())
                 continue;
-            exitChoice[0] = toupper(exitChoice[0]);
-
-            if (exitChoice.size() == 1 && (exitChoice[0] == 'E' || exitChoice[0] == 'S' || exitChoice[0] == 'Q'))
+            char c = static_cast<char>(toupper(static_cast<unsigned char>(s[0])));
+            if (c == 'E')
             {
-                if (exitChoice[0] == 'E')
-                {
-                    cout << "You have exited the elevator." << endl;
-                    elevator.closeDoors();
-                    user.setUserState(false);
-                }
-                else if (exitChoice[0] == 'S')
-                {
-                    cout << "You have chosen to stay in the elevator." << endl;
-                    elevator.closeDoors();
-                    user.setUserState(true);
-                }
-                else if (exitChoice[0] == 'Q')
-                {
-                    cout << "Exiting simulation. Goodbye!" << endl;
-                    exit(0);
-                }
+                cout << "You have exited the elevator.\n";
+                elevator.closeDoors();
+                user.setUserState(false);
+                user.setUserFloor(elevator.getCurrentFloor());
                 break;
             }
-            else
+            if (c == 'S')
             {
-                cout << "Invalid input. Please enter 'E' to Exit or 'S' to Stay." << endl;
-                cin.clear();
-                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                cout << "You have chosen to stay in the elevator.\n";
+                elevator.closeDoors();
+                user.setUserState(true);
+                user.setUserFloor(elevator.getCurrentFloor());
+                break;
             }
+            if (c == 'Q')
+            {
+                cout << "Exiting simulation. Goodbye!\n";
+                exit(0);
+            }
+            cout << "Enter E (exit), S (stay), or Q.\n";
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
         }
     }
 }
@@ -55,143 +118,197 @@ void stayOrExit(int floorRequest, Elevator &elevator, InteractiveUser &user) //p
 void InteractiveMode()
 {
     Elevator elevator;
-    char continueChoice = 'C';
-    cout << "You have selected Interactive Mode." << endl
-         << endl;
     InteractiveUser user;
-    int floorRequest;
-    string directionInput;
+    printHelp(elevator.getTotalFloors());
 
-    do
+    while (true)
     {
-        if (user.getState() == true)
+        if (!user.getState())
         {
-            cout << "You are currently inside the elevator at floor " << elevator.getCurrentFloor() << "." << endl;
-        }
-        else
-        {
-            cout << "You are currently outside the elevator at floor " << elevator.getCurrentFloor() << "." << endl;
-        }
-
-        if (user.getState() == false)
-        {
-            if (elevator.getCurrentFloor() == 1)
+            cout << "[Outside] You are at floor " << elevator.getCurrentFloor() << ". Enter: <floor> U/D, or H/Q\n> ";
+            string a, b;
+            if (!(cin >> a))
             {
-                cout << "Options: Up (U)" << endl;
+                cout << "Exiting.\n";
+                return;
             }
-            else if (elevator.getCurrentFloor() == elevator.getTotalFloors())
+
+            if (a.size() == 1)
             {
-                cout << "Options: Down (D)" << endl;
+                char c = static_cast<char>(toupper(static_cast<unsigned char>(a[0])));
+                if (c == 'Q')
+                {
+                    cout << "Exiting simulation. Goodbye!\n";
+                    return;
+                }
+                if (c == 'H')
+                {
+                    printHelp(elevator.getTotalFloors());
+                    continue;
+                }
+                if (c == 'P')
+                {
+                    cout << "[Status] Current floor: " << elevator.getCurrentFloor()
+                         << " / Total floors: " << elevator.getTotalFloors() << "\n";
+                    continue;
+                }
+            }
+
+            b.clear();
+            if (!normalizeTokens(a, b))
+            {
+                if (!(cin >> b))
+                {
+                    cout << "Expected direction (U/D).\n";
+                    cin.clear();
+                    continue;
+                }
+            }
+
+            int hallFloor = parseFloor(a);
+            if (hallFloor < 1 || hallFloor > elevator.getTotalFloors())
+            {
+                cout << "Invalid floor.\n";
+                continue;
+            }
+            char dirChar = static_cast<char>(toupper(static_cast<unsigned char>(b[0])));
+            if (dirChar != 'U' && dirChar != 'D')
+            {
+                cout << "Use U or D.\n";
+                continue;
+            }
+            Direction hallDir = (dirChar == 'U') ? UP : DOWN;
+
+            int car = elevator.getCurrentFloor();
+            if (hallDir == DOWN && hallFloor >= car)
+            {
+                cout << "Currently moving DOWN. That DOWN call at floor " << hallFloor
+                     << " will be served on the next DOWN pass.\n";
+            }
+            if (hallDir == UP && hallFloor <= car)
+            {
+                cout << "Currently moving UP. That UP call at floor " << hallFloor
+                     << " will be served on the next UP pass.\n";
+            }
+
+            if (hallFloor == car)
+            {
+                elevator.openDoors();
+                cout << "You have entered the elevator.\n";
+                user.setUserState(true);
+                user.setUserFloor(hallFloor);
+                elevator.closeDoors();
             }
             else
             {
-                cout << "Options: Up/Down (U/D)" << endl;
+                elevator.outsideRequest(hallFloor, hallDir);
+                while (elevator.getCurrentFloor() != hallFloor)
+                {
+                    int before = elevator.getCurrentFloor();
+                    elevator.step(hallDir);
+                    int dest = elevator.getCurrentFloor();
+                    if (dest != before)
+                    {
+                        if (dest > before)
+                            cout << "Elevator moving up from " << before << " to " << dest << " ";
+                        else
+                            cout << "Elevator moving down from " << before << " to " << dest << " ";
+                        travelDots();
+                        if (dest == hallFloor)
+                        {
+                            elevator.openDoors();
+                            cout << "You have entered the elevator.\n";
+                            user.setUserState(true);
+                            user.setUserFloor(dest);
+                            elevator.closeDoors();
+                            break;
+                        }
+                        else
+                        {
+                            elevator.openDoors();
+                            elevator.closeDoors();
+                        }
+                    }
+                    else
+                    {
+                        this_thread::sleep_for(chrono::milliseconds(120));
+                    }
+                }
+            }
+        }
+        else
+        {
+            cout << "[Inside] Current floor " << elevator.getCurrentFloor()
+                 << ". Enter destination (<floor> or <floor>N), or P/H/Q\n> ";
+            string a, b;
+            if (!(cin >> a))
+            {
+                cout << "Exiting.\n";
+                return;
             }
 
-            bool validDir = false;
-            while (!validDir)
+            if (a.size() == 1)
             {
-                cin >> directionInput;
-                if (directionInput.empty())
+                char c = static_cast<char>(toupper(static_cast<unsigned char>(a[0])));
+                if (c == 'Q')
+                {
+                    cout << "Exiting simulation. Goodbye!\n";
+                    return;
+                }
+                if (c == 'H')
+                {
+                    printHelp(elevator.getTotalFloors());
                     continue;
-                directionInput[0] = toupper(directionInput[0]);
-
-                if (directionInput.size() != 1)
+                }
+                if (c == 'P')
                 {
-                    cout << "Invalid input. Please enter 'U' for Up or 'D' for Down." << endl;
-                    cin.clear();
-                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                    cout << "[Status] Current floor: " << elevator.getCurrentFloor()
+                         << " / Total floors: " << elevator.getTotalFloors() << "\n";
                     continue;
                 }
+            }
 
-                if (directionInput[0] == 'Q')
+            b.clear();
+            normalizeTokens(a, b);
+            int destFloor = parseFloor(a);
+            if (destFloor < 1 || destFloor > elevator.getTotalFloors())
+            {
+                cout << "Invalid floor.\n";
+                continue;
+            }
+
+            if (destFloor == elevator.getCurrentFloor())
+            {
+                stayOrExit(destFloor, elevator, user);
+                continue;
+            }
+
+            Direction pref = (destFloor > elevator.getCurrentFloor()) ? UP : DOWN;
+            elevator.requestFloor(destFloor);
+
+            while (elevator.getCurrentFloor() != destFloor)
+            {
+                int before = elevator.getCurrentFloor();
+                elevator.step(pref);
+                int after = elevator.getCurrentFloor();
+                if (after != before)
                 {
-                    cout << "Exiting simulation. Goodbye!" << endl;
-                    exit(0);
-                }
-                else if (directionInput[0] == 'U' && elevator.getCurrentFloor() == elevator.getTotalFloors())
-                {
-                    cout << "You are on the top floor and cannot go up. Please enter 'D' for Down." << endl;
-                }
-                else if (directionInput[0] == 'D' && elevator.getCurrentFloor() == 1)
-                {
-                    cout << "You are on the ground floor and cannot go down. Please enter 'U' for Up." << endl;
-                }
-                else if (directionInput[0] == 'U' || directionInput[0] == 'D')
-                {
-                    validDir = true;
+                    if (after > before)
+                        cout << "Elevator moving up from " << before << " to " << after << " ";
+                    else
+                        cout << "Elevator moving down from " << before << " to " << after << " ";
+                    travelDots();
+                    elevator.openDoors();
+                    elevator.closeDoors();
                 }
                 else
                 {
-                    cout << "Invalid input. Please enter 'U' for Up or 'D' for Down." << endl;
-                    cin.clear();
-                    cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                    this_thread::sleep_for(chrono::milliseconds(120));
                 }
             }
+
+            cout << "Elevator has arrived at floor " << elevator.getCurrentFloor() << ".\n";
+            stayOrExit(destFloor, elevator, user);
         }
-
-        Direction dir = (toupper(directionInput[0]) == 'U') ? UP : DOWN;
-
-        elevator.outsideRequest(floorRequest, dir);
-
-        if (user.getUserFloor() == elevator.getCurrentFloor() && user.getState() == false)
-        {
-            elevator.openDoors();
-            cout << "You have entered the elevator." << endl;
-            user.setUserState(true);
-            elevator.closeDoors();
-        }
-
-        cout << "Enter the floor you want to go to: (1-" << elevator.getTotalFloors() << "): ";
-        while (!(cin >> floorRequest) || floorRequest < 1 || floorRequest > elevator.getTotalFloors())
-        {
-            cout << "Invalid floor request. Please enter a floor between 1 and " << elevator.getTotalFloors() << "." << endl;
-            cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-        }
-
-        if (floorRequest == elevator.getCurrentFloor())
-        {
-            stayOrExit(floorRequest, elevator, user);
-            continue;
-        }
-
-        elevator.requestFloor(floorRequest);
-
-        while (elevator.getCurrentFloor() != floorRequest)
-        {
-            if (elevator.getCurrentFloor() < floorRequest)
-            {
-                elevator.step(UP);
-                cout << "Elevator is moving up to floor " << floorRequest << "." << endl;
-                for (int i = 0; i < 3; i++)
-                {
-                    this_thread::sleep_for(chrono::milliseconds(700));
-                    cout << ".";
-                }
-                elevator.setCurrentFloor(floorRequest);
-                user.setUserFloor(floorRequest);
-                cout << endl;
-                break;
-            }
-            else if (elevator.getCurrentFloor() > floorRequest)
-            {
-                elevator.step(DOWN);
-                cout << "Elevator is moving down to floor " << floorRequest << "." << endl;
-                for (int i = 0; i < 3; i++)
-                {
-                    this_thread::sleep_for(chrono::milliseconds(700));
-                    cout << ".";
-                }
-                elevator.setCurrentFloor(floorRequest);
-                user.setUserFloor(floorRequest);
-                cout << endl;
-                break;
-            }
-        }
-
-        cout << "Elevator has arrived at floor " << elevator.getCurrentFloor() << "." << endl;
-        stayOrExit(floorRequest, elevator, user);
-
-    } while (true);
+    }
 }

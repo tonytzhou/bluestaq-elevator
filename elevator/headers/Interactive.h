@@ -4,7 +4,6 @@
 #include "Elevator.h"
 #include "InteractiveUser.h"
 
-// Declare the functions (not define)
 void stayOrExit(int floorRequest, Elevator &elevator, InteractiveUser &user);
 void InteractiveMode();
 

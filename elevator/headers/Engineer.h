@@ -1,6 +1,5 @@
-#ifndef ENGINEER_H
-#define ENGINEER_H
+// headers/Engineer.h
+#pragma once
 
+// Launches Engineer Mode with concurrent input + elevator processing.
 void EngineerMode();
-
-#endif
